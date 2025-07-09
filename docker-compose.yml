@@ -1,0 +1,38 @@
+version: '3.9'
+
+services:
+  homeassistant:
+    container_name: homeassistant
+    image: ghcr.io/home-assistant/home-assistant:stable
+    volumes:
+      - /home/toni/homeassistant/config:/config
+    restart: unless-stopped
+    network_mode: host
+    privileged: true
+
+  frigate:
+    container_name: frigate
+    image: ghcr.io/blakeblackshear/frigate:stable
+    privileged: true
+    shm_size: "64mb"
+    network_mode: host
+    devices:
+      - /dev/bus/usb:/dev/bus/usb  # Coral USB
+      # - /dev/apex_0:/dev/apex_0    # Coral PCIe (descomentar si la usas)
+    volumes:
+      - /home/toni/frigate/config:/config
+      - /mnt/frigate-data/media:/media
+      - /etc/localtime:/etc/localtime:ro
+    restart: unless-stopped
+    environment:
+      - FRIGATE_RTSP_PASSWORD=tu_contraseña_rtsp
+
+  mosquitto:
+    container_name: mosquitto
+    image: eclipse-mosquitto:2
+    restart: unless-stopped
+    volumes:
+      - /home/toni/mosquitto/config:/mosquitto/config
+      - /home/toni/mosquitto/data:/mosquitto/data
+      - /home/toni/mosquitto/log:/mosquitto/log
+    network_mode: host
