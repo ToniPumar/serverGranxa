@@ -7,9 +7,9 @@ apt update && apt upgrade -y
 apt install -y curl git htop net-tools unzip software-properties-common ufw fail2ban python3 python3-pip docker.io docker-compose cockpit unattended-upgrades
 
 # === USUARIO TONI CON SUDO ===
-useradd -m -s /bin/bash toni
-echo "toni:Aqui Contrasinal" | chpasswd
-usermod -aG sudo toni
+#useradd -m -s /bin/bash toni
+#echo "toni:Aqui Contrasinal" | chpasswd
+#usermod -aG sudo toni
 usermod -aG docker toni
 
 # === CONFIGURAR SSH SEGURO ===
