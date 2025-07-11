@@ -21,7 +21,7 @@ services:
       # - /dev/apex_0:/dev/apex_0    # Coral PCIe (descomentar si la usas)
     volumes:
       - /home/toni/frigate/config:/config
-      - /mnt/frigate-data/media:/media
+      - /mnt/frigate/media:/media  # <- CORREGIDO AQUÍ
       - /etc/localtime:/etc/localtime:ro
     restart: unless-stopped
     environment:
