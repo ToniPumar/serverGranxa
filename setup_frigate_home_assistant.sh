@@ -1,9 +1,9 @@
 #!/bin/bash
 
 # 1. Verificar si el punto de montaje está en /etc/fstab
-echo "[INFO] Verificando si /mnt/frigate-data está configurado en /etc/fstab..."
-if ! grep -qs "/mnt/frigate-data" /etc/fstab; then
-  echo "[ERROR] El punto de montaje /mnt/frigate-data no está en /etc/fstab."
+echo "[INFO] Verificando si /mnt/frigate está configurado en /etc/fstab..."
+if ! grep -qs "/mnt/frigate" /etc/fstab; then
+  echo "[ERROR] El punto de montaje /mnt/frigate no está en /etc/fstab."
   echo "Por favor configúralo antes de ejecutar este script."
   exit 1
 fi
@@ -11,7 +11,7 @@ fi
 # 2. Crear directorios necesarios
 echo "[INFO] Creando carpetas para Frigate, Home Assistant y Mosquitto..."
 mkdir -p /home/toni/frigate/config
-mkdir -p /mnt/frigate-data/media
+mkdir -p /mnt/frigate/media
 mkdir -p /home/toni/homeassistant/config
 mkdir -p /home/toni/mosquitto/config
 mkdir -p /home/toni/mosquitto/data
