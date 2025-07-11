@@ -1,6 +1,10 @@
 #!/bin/bash
-
+echo " +-+-+-+-+ +-+-+-+-+-+"
+echo " |T|o|n|i| |P|u|m|a|r|"
+echo " +-+-+-+-+ +-+-+-+-+-+"
+echo "Script de configuración de servidor"
 read -p "Recorde ter a clave publica agregada o documento para poder conectarse... pulsa"
+read -p "Recorde ter montado o segundo disco en /mnt/frigate para proseguir co segundo escript"
 echo "Iniciando script Toni pumar"
 echo "Revisa las configuraciones y comenta las lineas pertinentes"
 # === ACTUALIZACIÓN DEL SISTEMA ===
