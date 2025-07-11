@@ -21,6 +21,12 @@ usermod -aG docker toni
 
 read -p "Actualizado e programas base instalados.. pulse para continuar"
 
+read -p "Preparate para instalar tailscale"
+# === TAILSCALE VPN ===
+curl -fsSL https://tailscale.com/install.sh | sh
+tailscale up --ssh
+
+
 # === CONFIGURAR SSH SEGURO ===
 echo "[INFO] Desactivando acceso por contraseña y root en SSH..."
 
@@ -72,11 +78,6 @@ systemctl start fail2ban
 # === COCKPIT ===
 systemctl enable cockpit.socket
 systemctl start cockpit.socket
-
-read -p "Preparate para instalar tailscale"
-# === TAILSCALE VPN ===
-curl -fsSL https://tailscale.com/install.sh | sh
-tailscale up --ssh
 
 # === ACTUALIZACIONES AUTOMÁTICAS SOLO DE SEGURIDAD ===
 dpkg-reconfigure --priority=low unattended-upgrades
