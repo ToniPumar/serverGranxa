@@ -1,5 +1,7 @@
 #!/bin/bash
 
+echo "[INFO] === INICIO DEL SCRIPT DE CONFIGURACIÓN DE SERVICIOS ==="
+
 # 1. Verificar si el punto de montaje está en /etc/fstab
 echo "[INFO] Verificando si /mnt/frigate está configurado en /etc/fstab..."
 if ! grep -qs "/mnt/frigate" /etc/fstab; then
@@ -30,13 +32,21 @@ allow_anonymous true
 listener 1883
 EOF
 
-cd /home/toni
+# 4. Asegurar que Docker esté activo
+echo "[INFO] Asegurando que Docker esté activo..."
+systemctl start docker
 
-# 4. Ejecutar docker compose
+# 5. Lanzar contenedores con Docker Compose
 echo "[INFO] Lanzando los contenedores con Docker Compose..."
+cd /home/toni
 docker compose up -d
 
-# 5. Asegurar que Docker arranque siempre al iniciar el sistema
+if [ $? -ne 0 ]; then
+  echo "[ERROR] Falló el arranque de Docker Compose. Verifica el archivo docker-compose.yml y el estado de Docker."
+  exit 1
+fi
+
+# 6. Asegurar que Docker arranque siempre al iniciar el sistema
 echo "[INFO] Habilitando Docker al arranque..."
 systemctl enable docker
 
