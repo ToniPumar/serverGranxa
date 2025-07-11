@@ -39,7 +39,7 @@ echo "[INFO] Añadiendo clave pública SSH para el usuario toni..."
 
 mkdir -p /home/toni/.ssh
 
-echo "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEuWxu0EjemploDeClavePublicaEnTextoPlanoUsuarioToni" > /home/toni/.ssh/authorized_keys
+#echo "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEuWxu0EjemploDeClavePublicaEnTextoPlanoUsuarioToni" > /home/toni/.ssh/authorized_keys
 
 chown -R toni:toni /home/toni/.ssh
 chmod 700 /home/toni/.ssh
