@@ -17,11 +17,15 @@ services:
     shm_size: "64mb"
     network_mode: host
     devices:
-      - /dev/bus/usb:/dev/bus/usb  # Coral USB
-      # - /dev/apex_0:/dev/apex_0    # Coral PCIe (descomentar si la usas)
+      #- /dev/bus/usb:/dev/bus/usb  # Coral USB
+      - /dev/apex_0:/dev/apex_0    # Coral PCIe (descomentar si la usas)
+    # Volúmenes para que la configuración, grabaciones y automatizaciones de
+    # Frigate sean persistentes.  Se mapea /mnt/frigate/media al directorio
+    # interno /media/frigate, y se expone una carpeta de automatizaciones.
     volumes:
       - /home/toni/frigate/config:/config
-      - /mnt/frigate/media:/media  # <- CORREGIDO AQUÍ
+      - /mnt/frigate/media:/media/frigate
+      - /home/toni/frigate/automations:/automations
       - /etc/localtime:/etc/localtime:ro
     restart: unless-stopped
     environment:
@@ -36,3 +40,21 @@ services:
       - /home/toni/mosquitto/data:/mosquitto/data
       - /home/toni/mosquitto/log:/mosquitto/log
     network_mode: host
+
+  # Servicio de reconocimiento facial CompreFace.  Utiliza la imagen
+  # oficial en un único contenedor (incluye la base de datos y el API).  Se
+  # expone el puerto 8000 para acceder a la interfaz web y la API.  Los
+  # datos de la base de datos se almacenan en /home/toni/compreface-db para
+  # que sean persistentes entre reinicios.
+  compreface:
+    container_name: compreface
+    image: exadel/compreface:latest
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    # Mapear la base de datos de PostgreSQL a un directorio persistente.  El
+    # contenedor single‑image de CompreFace utiliza /var/lib/postgresql/data
+    # para almacenar los datos.  De este modo, al actualizar o recrear
+    # el contenedor no se perderán las configuraciones ni los usuarios.
+    volumes:
+      - /home/toni/compreface-db:/var/lib/postgresql/data
