@@ -1,99 +1,195 @@
 #!/bin/bash
-echo " +-+-+-+-+ +-+-+-+-+-+"
-echo " |T|o|n|i| |P|u|m|a|r|"
-echo " +-+-+-+-+ +-+-+-+-+-+"
-echo "Script de configuración de servidor"
-read -p "Recorde ter a clave publica agregada o documento para poder conectarse... pulsa"
-read -p "Recorde ter montado o segundo disco en /mnt/frigate para proseguir co segundo escript"
-echo "Iniciando script Toni pumar"
-echo "Revisa las configuraciones y comenta las lineas pertinentes"
-# === ACTUALIZACIÓN DEL SISTEMA ===
+
+# ------------------------------------------------------------
+# Script unificado de despliegue para el servidor Granxa
+#
+# Requisitos:
+#   - Debe ejecutarse como root (sudo).
+#   - El punto de montaje /mnt/frigate debe existir y estar definido en
+#     /etc/fstab.
+#   - Debe existir un usuario "toni" en el sistema.
+
+set -e
+
+# Ruta del directorio donde reside este script (directorio del repo)
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# Función de pausa con mensaje
+pausa() {
+  local msg="$1"
+  echo
+  read -rp "${msg} Pulse ENTER para continuar... "
+  echo
+}
+
+echo "\n========== Configuración del servidor Granxa =========="
+
+# --- Comprobaciones iniciales ---
+echo "[INFO] Verificando precondiciones..."
+
+# Comprobar que la partición /mnt/frigate existe
+if [ ! -d /mnt/frigate ]; then
+  echo "[ERROR] La ruta /mnt/frigate no existe. Conecte y monte el segundo disco en /mnt/frigate antes de continuar."
+  exit 1
+fi
+
+# Comprobar que /mnt/frigate está declarada en /etc/fstab
+if ! grep -qs '/mnt/frigate' /etc/fstab; then
+  echo "[ERROR] El punto de montaje /mnt/frigate no está definido en /etc/fstab. Añádalo para que sea persistente y vuelva a ejecutar este script."
+  exit 1
+fi
+
+# Comprobar que el usuario toni existe
+if ! id -u toni >/dev/null 2>&1; then
+  echo "[ERROR] El usuario 'toni' no existe. Cree el usuario antes de continuar."
+  exit 1
+fi
+
+pausa "Precondiciones comprobadas."
+
+# --- Actualización del sistema y paquetes base ---
+echo "[INFO] Actualizando lista de paquetes y sistema..."
 apt update && apt upgrade -y
 
-# === HERRAMIENTAS BÁSICAS ===
-apt install -y curl htop net-tools unzip software-properties-common ufw fail2ban python3 python3-pip docker.io docker-compose cockpit unattended-upgrades
+echo "[INFO] Instalando herramientas básicas y dependencias..."
+apt install -y curl iputils-ping net-tools unzip software-properties-common libedgetpu1-std \
+  ufw fail2ban python3 python3-pip docker.io docker-compose git unattended-upgrades mosquitto mosquitto-clients
 
-# === USUARIO TONI CON SUDO ===
-#useradd -m -s /bin/bash toni
-#echo "toni:Aqui Contrasinal" | chpasswd
-#usermod -aG sudo toni
+# Añadir usuario toni al grupo docker para poder ejecutar contenedores sin sudo
+echo "[INFO] Añadiendo al usuario 'toni' al grupo docker..."
 usermod -aG docker toni
 
-read -p "Actualizado e programas base instalados.. pulse para continuar"
+pausa "Sistema actualizado e instaladas herramientas básicas."
 
-read -p "Preparate para instalar tailscale"
-# === TAILSCALE VPN ===
+# --- Instalación de Tailscale ---
+echo "[INFO] Instalando Tailscale..."
 curl -fsSL https://tailscale.com/install.sh | sh
-tailscale up --ssh
 
+# Levantar Tailscale con soporte SSH.  Esto solicitará autenticación en
+# el dispositivo de administración y habilitará acceso cifrado.
+echo "[INFO] Configurando Tailscale (se abrirá una autenticación en el navegador si es necesario)..."
+tailscale up --ssh || true
 
-# === CONFIGURAR SSH SEGURO ===
-echo "[INFO] Desactivando acceso por contraseña y root en SSH..."
+pausa "Tailscale instalado."
 
-# Desactiva el login con contraseña
-sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
-
-# Desactiva login como root
-sed -i 's/^#*PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config
-
-# Reinicia SSH para aplicar cambios
+# --- Endurecimiento de SSH ---
+echo "[INFO] Configurando acceso SSH: deshabilitando login por contraseña y root..."
+sed -i 's/^#\?PasswordAuthentication .*/PasswordAuthentication no/' /etc/ssh/sshd_config
+sed -i 's/^#\?PermitRootLogin .*/PermitRootLogin no/' /etc/ssh/sshd_config
 systemctl restart ssh
 
-read -p "Vamos a añadir clave publica"
-# === CLAVE PÚBLICA PARA TONI ===
-echo "[INFO] Añadiendo clave pública SSH para el usuario toni..."
+pausa "SSH configurado."
 
-mkdir -p /home/toni/.ssh
+# --- Configuración de UFW ---
+echo "[INFO] Configurando el cortafuegos UFW..."
+# Reiniciar reglas previas para asegurarnos de un estado limpio
+ufw --force reset
 
-#echo "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEuWxu0EjemploDeClavePublicaEnTextoPlanoUsuarioToni" > /home/toni/.ssh/authorized_keys
-
-chown -R toni:toni /home/toni/.ssh
-chmod 700 /home/toni/.ssh
-chmod 600 /home/toni/.ssh/authorized_keys
-
-echo "[✅] SSH seguro configurado con clave pública."
-
-# Por defecto, denegar todo lo que entra
+# Denegar todo el tráfico entrante por defecto y permitir todo el tráfico saliente
 ufw default deny incoming
-
-# Permitir todo lo que sale
 ufw default allow outgoing
 
-# Permitir tráfico entrante por la interfaz de Tailscale (remoto seguro)
+# Permitir tráfico entrante y saliente en la interfaz de Tailscale
 ufw allow in on tailscale0
+ufw allow out on tailscale0
 
-# Permitir tráfico desde la red local a servicios (ajusta el rango si es necesario)
-ufw allow from 192.168.0.0/16 to any port 22 proto tcp     # SSH
-ufw allow from 192.168.0.0/16 to any port 9090 proto tcp   # Cockpit
-ufw allow from 192.168.0.0/16 to any port 8123 proto tcp   # Home Assistant
-ufw allow from 192.168.0.0/16 to any port 5000:5500 proto tcp # Frigate (si usas ese rango)
+# Definir red local (ajuste esto si su red local no es 192.168.0.0/24)
+LOCAL_NET="192.168.0.0/24"
 
-# Habilitar UFW si no lo está
+# Permitir tráfico local para servicios básicos
+ufw allow from ${LOCAL_NET} to any port 22 proto tcp      # SSH
+ufw allow from ${LOCAL_NET} to any port 9090 proto tcp    # Cockpit
+ufw allow from ${LOCAL_NET} to any port 8123 proto tcp    # Home Assistant
+ufw allow from ${LOCAL_NET} to any port 5000:5500 proto tcp # Frigate
+ufw allow from ${LOCAL_NET} to any port 1883 proto tcp    # Mosquitto
+ufw allow from ${LOCAL_NET} to any port 8000 proto tcp    # CompreFace (UI)
+
+# Habilitar UFW
 ufw --force enable
 
-# === FAIL2BAN ===
-systemctl enable fail2ban
-systemctl start fail2ban
+pausa "Cortafuegos configurado."
 
-# === COCKPIT ===
-systemctl enable cockpit.socket
-systemctl start cockpit.socket
+# --- Fail2Ban y Cockpit ---
+echo "[INFO] Habilitando y arrancando servicios de seguridad (fail2ban) y administración (cockpit)..."
+systemctl enable --now fail2ban
+systemctl enable --now cockpit.socket
 
-# === ACTUALIZACIONES AUTOMÁTICAS SOLO DE SEGURIDAD ===
+pausa "Servicios de seguridad y administración habilitados."
+
+# --- Configuración de actualizaciones automáticas ---
+echo "[INFO] Configurando actualizaciones automáticas de seguridad..."
 dpkg-reconfigure --priority=low unattended-upgrades
-cat > /etc/apt/apt.conf.d/20auto-upgrades <<EOF
+cat > /etc/apt/apt.conf.d/20auto-upgrades <<'CFGEOF'
 APT::Periodic::Update-Package-Lists "1";
 APT::Periodic::Unattended-Upgrade "1";
 APT::Periodic::AutocleanInterval "7";
 APT::Periodic::Verbose "1";
+CFGEOF
+
+pausa "Actualizaciones automáticas configuradas."
+
+# --- Preparación de directorios persistentes ---
+echo "[INFO] Creando directorios para contenedores y datos persistentes..."
+
+# Frigate: configuración, automatizaciones y almacenamiento de medios
+mkdir -p /home/toni/frigate/config
+mkdir -p /home/toni/frigate/automations
+mkdir -p /mnt/frigate/media
+mkdir -p /mnt/frigate/media/snapshots/matriculas
+mkdir -p /mnt/frigate/media/snapshots/coches
+mkdir -p /mnt/frigate/media/snapshots/caras
+mkdir -p /mnt/frigate/media/snapshots/personas
+
+# Home Assistant
+mkdir -p /home/toni/homeassistant/config
+
+# Mosquitto
+mkdir -p /home/toni/mosquitto/config /home/toni/mosquitto/data /home/toni/mosquitto/log
+
+# CompreFace: base de datos de PostgreSQL persistente para el contenedor
+mkdir -p /home/toni/compreface-db
+
+pausa "Directorios creados."
+
+# --- Configuración de Docker Compose y Mosquitto ---
+echo "[INFO] Preparando archivos de configuración para Docker Compose y Mosquitto..."
+
+# Copiar el archivo docker-compose.yml del repositorio al home de toni
+cp "${SCRIPT_DIR}/docker-compose.yml" /home/toni/docker-compose.yml
+chown toni:toni /home/toni/docker-compose.yml
+
+# Generar configuración de Mosquitto más segura (modifique según sus necesidades)
+cat > /home/toni/mosquitto/config/mosquitto.conf <<'EOF'
+persistence true
+persistence_location /mosquitto/data/
+log_dest file /mosquitto/log/mosquitto.log
+allow_anonymous false
+listener 1883
+password_file /mosquitto/config/passwd
 EOF
 
-# === SNAPSHOT LVM SI EXISTE ===
-if lvdisplay /dev/ubuntu-vg/root &>/dev/null; then
-    lvcreate --size 2G --snapshot --name snap-basico /dev/ubuntu-vg/root
-    echo "✅ Snapshot LVM creado: snap-basico"
-else
-    echo "⚠️ No se detecta LVM. No se ha creado snapshot."
+# Crear fichero de contraseñas para Mosquitto con credenciales de ejemplo
+if [ ! -f /home/toni/mosquitto/config/passwd ]; then
+  echo "[INFO] Creando credenciales por defecto para Mosquitto (usuario mqttuser / contraseña mqttpass). Cambie estas credenciales posteriormente."
+  mosquitto_passwd -c -b /home/toni/mosquitto/config/passwd mqttuser mqttpass
 fi
 
-echo "✅ Configuración inicial completa."
+chown -R toni:toni /home/toni/mosquitto
+
+pausa "Archivo docker-compose y configuración de Mosquitto preparados."
+
+# --- Lanzar contenedores principales ---
+echo "[INFO] Iniciando todos los contenedores definidos en docker-compose.yml (Home Assistant, Frigate, Mosquitto y CompreFace) ..."
+
+# Cambiar al directorio del usuario toni donde reside docker-compose.yml
+cd /home/toni
+
+# Levantar todos los servicios definidos en el archivo docker-compose.yml.  Esto
+# incluye Home Assistant, Frigate, Mosquitto y CompreFace en un único
+# docker-compose, tal como solicita el usuario.
+docker compose -f docker-compose.yml up -d
+
+# Asegurar que el servicio docker arranca al iniciar el sistema
+systemctl enable docker
+
+echo "\n[✓] Configuración completa. Todos los servicios (Home Assistant, Frigate, Mosquitto y CompreFace) se han desplegado utilizando un único archivo docker-compose.\n"
