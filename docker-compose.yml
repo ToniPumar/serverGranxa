@@ -1,15 +1,32 @@
 version: '3.9'
 
+# Definición de servicios para el servidor Granxa.  La mayoría de los
+# valores sensibles (contraseñas, API keys) se cargan desde el fichero
+# .env mediante la sintaxis ${VARIABLE}.  Cada servicio incluye
+# un bloque de logging para rotar los logs y evitar llenar el disco.
+
 services:
+  # Home Assistant: automatización del hogar.  No requiere privilegios
+  # completos salvo que se acceda a dispositivos específicos.  Usa
+  # network_mode=host para exponer su interfaz web directamente en
+  # el puerto definido por HOMEASSISTANT_PORT (8123 por defecto).
   homeassistant:
     container_name: homeassistant
     image: ghcr.io/home-assistant/home-assistant:stable
     volumes:
       - /home/toni/homeassistant/config:/config
+    environment:
+      - TZ=Europe/Madrid
     restart: unless-stopped
     network_mode: host
-    privileged: true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
+  # Frigate: NVR con detección de objetos mediante Coral.  Se ejecuta
+  # en modo host para permitir acceso a los puertos RTSP y UI.
   frigate:
     container_name: frigate
     image: ghcr.io/blakeblackshear/frigate:stable
@@ -17,11 +34,7 @@ services:
     shm_size: "64mb"
     network_mode: host
     devices:
-      #- /dev/bus/usb:/dev/bus/usb  # Coral USB
-      - /dev/apex_0:/dev/apex_0    # Coral PCIe (descomentar si la usas)
-    # Volúmenes para que la configuración, grabaciones y automatizaciones de
-    # Frigate sean persistentes.  Se mapea /mnt/frigate/media al directorio
-    # interno /media/frigate, y se expone una carpeta de automatizaciones.
+      - /dev/apex_0:/dev/apex_0
     volumes:
       - /home/toni/frigate/config:/config
       - /mnt/frigate/media:/media/frigate
@@ -29,8 +42,16 @@ services:
       - /etc/localtime:/etc/localtime:ro
     restart: unless-stopped
     environment:
-      - FRIGATE_RTSP_PASSWORD=tu_contraseña_rtsp
+      - FRIGATE_RTSP_PASSWORD=${FRIGATE_RTSP_PASSWORD}
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
+  # Mosquitto: broker MQTT interno para Frigate y los scripts de
+  # automatización.  Se ejecuta en modo host y utiliza ficheros
+  # persistentes en /home/toni/mosquitto.
   mosquitto:
     container_name: mosquitto
     image: eclipse-mosquitto:2
@@ -40,21 +61,73 @@ services:
       - /home/toni/mosquitto/data:/mosquitto/data
       - /home/toni/mosquitto/log:/mosquitto/log
     network_mode: host
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
-  # Servicio de reconocimiento facial CompreFace.  Utiliza la imagen
-  # oficial en un único contenedor (incluye la base de datos y el API).  Se
-  # expone el puerto 8000 para acceder a la interfaz web y la API.  Los
-  # datos de la base de datos se almacenan en /home/toni/compreface-db para
-  # que sean persistentes entre reinicios.
+  # CompreFace: servicio de reconocimiento facial.  Se expone
+  # únicamente en localhost para no ser accesible desde la red.  Si
+  # necesita exponerlo a Tailscale, cambie 127.0.0.1 por 0.0.0.0.
   compreface:
     container_name: compreface
-    image: exadel/compreface:latest
+    image: exadel/compreface:0.6.2
     restart: unless-stopped
     ports:
-      - "8000:8000"
-    # Mapear la base de datos de PostgreSQL a un directorio persistente.  El
-    # contenedor single‑image de CompreFace utiliza /var/lib/postgresql/data
-    # para almacenar los datos.  De este modo, al actualizar o recrear
-    # el contenedor no se perderán las configuraciones ni los usuarios.
+      - "127.0.0.1:8000:8000"
     volumes:
       - /home/toni/compreface-db:/var/lib/postgresql/data
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # frigate-listener: servicio auxiliar que ejecuta los scripts de
+  # automatización.  Sus variables de entorno se leen de .env.  Tras
+  # instalar las dependencias de Python necesarias, lanza
+  # event_listener.py.  Depende de mosquitto, frigate y compreface.
+  frigate-listener:
+    container_name: frigate_listener
+    image: python:3.11-slim
+    depends_on:
+      - mosquitto
+      - compreface
+      - frigate
+    volumes:
+      - /home/toni/frigate/automations:/app
+      - /home/toni/frigate/config:/config:ro
+      - /mnt/frigate/media:/media/frigate:ro
+    environment:
+      - MQTT_HOST=mosquitto
+      - MQTT_PORT=1883
+      - COMPRE_FACE_HOST=${COMPRE_FACE_HOST}
+      - COMPRE_FACE_API_KEY=${COMPRE_FACE_API_KEY}
+    command: >
+      sh -c "pip install --no-cache-dir paho-mqtt requests pyyaml && \
+             python /app/event_listener.py"
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Watchtower: monitoriza los contenedores y actualiza las imágenes
+  # automáticamente cuando hay nuevas versiones.  La opción --cleanup
+  # elimina imágenes antiguas después de actualizar.  Asegúrese de
+  # revisar periódicamente los cambios antes de actualizar en
+  # producción.
+  watchtower:
+    container_name: watchtower
+    image: containrrr/watchtower
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: --cleanup
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
