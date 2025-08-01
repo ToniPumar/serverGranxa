@@ -8,7 +8,6 @@ CompreFace e un listener en Python que automatiza o recoñecemento de
 caras e matrículas.  Ademais, engádese o servizo Watchtower para
 mantelos actualizados.
 
-Estrutura do proxecto
 serverGranxa/
 ├── docker-compose.yml        # definición de contedores
 ├── .env                      # variables sensibles (copiar de .env.example)
@@ -27,9 +26,7 @@ serverGranxa/
 │       ├── event_listener.py  # escoita eventos de Frigate via MQTT
 │       ├── utils.py           # funcións auxiliares
 │       └── known_plates.json  # matrículas coñecidas
-└── README.md                # este manual
-
-docker-compose.yml
+└── README.md
 
 Define os servizos e montaxes de volumes.  Os puntos salientables son:
 	•	Home Assistant expón a súa interface no porto 8123 da máquina
