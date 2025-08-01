@@ -1,0 +1,33 @@
+# cam4.yml - Configuración da cámara 4
+# Esta cámara comportase do mesmo xeito que a cámara 3: grava
+# unicamente cando hai movemento de persoas ou caras.
+
+cam4:
+  ffmpeg:
+    inputs:
+      - path: rtsp://usuario:contraseña@camara4.example.com:554/stream
+        roles:
+          - rtsp
+          - detect
+          - record
+  detect:
+    enabled: true
+    fps: 5
+    objects:
+      track:
+        - person       # detecta persoas
+        - face         # detecta caras
+        # - car        # opcional: detecta coches
+        # - truck      # opcional: detecta camións
+  # Grava só con movemento reutilizando a ancora ``record_motion``
+  record: *record_motion
+
+  # Snapshots por defecto
+  snapshots: *snapshots_default
+  plus:
+    detect:
+      requested_models:
+        - face          # modelo facial
+        # - license_plate # modelo de matrículas (descomenta se precisas)
+        # - truck         # modelo de camións (Frigate+ ou modelo propio)
+# Podes modificar 'days' para aumentar ou reducir a retención.

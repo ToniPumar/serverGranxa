@@ -1,0 +1,35 @@
+# cam2.yml - Configuración da cámara 2
+# Esta cámara é similar á cámara 1: grava vídeo continuo 24/7
+# e detecta persoas e caras.
+
+cam2:
+  ffmpeg:
+    inputs:
+      - path: rtsp://usuario:contraseña@camara2.example.com:554/stream  # RTSP da cámara 2
+        roles:
+          - rtsp
+          - detect
+          - record
+  detect:
+    enabled: true
+    fps: 5
+    width: 1920
+    height: 1080
+    objects:
+      track:
+        - person       # detecta persoas
+        - face         # detecta caras con Frigate+
+        # - car        # opcional: detecta coches
+        # - truck      # opcional: detecta camións se tes un modelo
+  # Reutilizamos a mesma configuracion de gravación continua que cam1
+  record: *record_continuous
+
+  # Configuración de snapshots por defecto
+  snapshots: *snapshots_default
+  plus:
+    detect:
+      requested_models:
+        - face           # modelo de recoñecemento facial
+        # - license_plate  # modelo para recoñecer matrículas de vehículos
+        # - truck          # modelo para recoñecer camións (Frigate+ ou modelo propio)
+# Outras opcións personalizables son idénticas ás de cam1.

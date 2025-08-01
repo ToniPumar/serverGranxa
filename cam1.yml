@@ -1,0 +1,43 @@
+# cam1.yml - Configuración da cámara 1
+# Esta cámara grava vídeo continuo 24/7, detecta persoas e caras
+# utilizando a aceleradora Coral.  Substitúe a URL de RTSP pola
+# da túa cámara.  Cada campo está comentado para saber a súa función.
+
+cam1:
+  ffmpeg:
+    inputs:
+      - path: rtsp://usuario:contraseña@camara1.example.com:554/stream  # URL RTSP da cámara
+        roles:
+          - rtsp     # proporciona unha fonte RTSP á UI e a outros clientes
+          - detect   # emprega este fluxo para detección de obxectos
+          - record   # emprega este fluxo para gravación continua
+  detect:
+    enabled: true      # activa a detección de obxectos
+    fps: 5             # número de fotogramas por segundo para procesar
+    width: 1920        # resolución horizontal (opcional)
+    height: 1080       # resolución vertical (opcional)
+    objects:
+      track:
+        - person       # seguirá obxectos de tipo persoa
+        - face         # seguirá caras utilizando Frigate+
+        # - car        # descomenta para detectar coches e vehículos
+        # - truck      # descomenta para detectar camións (pode requerir Frigate+ ou modelo personalizado)
+  # Empregamos a ancora ``record_continuous`` definida en
+  # general.yml para gravación continua.  Esta ancora define unha
+  # retención de 7 días e modo 'all'.
+  record: *record_continuous
+
+  # Empregamos a ancora ``snapshots_default`` para a configuración de
+  # snapshots por defecto (2 días de retención).
+  snapshots: *snapshots_default
+  plus:
+    detect:
+      requested_models:
+        - face          # modelo de recoñecemento facial de Frigate+
+        # - license_plate # modelo de recoñecemento de matrículas (Frigate+)
+        # - truck         # modelo de recoñecemento de camións (requere subscrición a Frigate+ ou modelo propio)
+# Parámetros opcionais que podes configurar:
+#  motion:
+#    contour_area: 1500   # área mínima para considerar movemento
+#  zones:
+#    - nome_da_zona        # define zonas de interese

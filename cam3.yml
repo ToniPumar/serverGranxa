@@ -1,0 +1,35 @@
+# cam3.yml - Configuración da cámara 3
+# Esta cámara grava só cando detecta movemento (persoas ou caras).
+# Ideal para reducir consumo de disco.  A detección e snapshots
+# activaranse ante movementos.
+
+cam3:
+  ffmpeg:
+    inputs:
+      - path: rtsp://usuario:contraseña@camara3.example.com:554/stream  # RTSP da cámara 3
+        roles:
+          - rtsp
+          - detect
+          - record
+  detect:
+    enabled: true
+    fps: 5
+    objects:
+      track:
+        - person       # detecta persoas
+        - face         # detecta caras
+        # - car        # opcional: detecta coches
+        # - truck      # opcional: detecta camións
+  # Usamos a ancora ``record_motion`` definida en general.yml, que grava
+  # só cando hai movemento e conserva os vídeos 3 días.
+  record: *record_motion
+
+  # Usamos a configuracion de snapshots por defecto.
+  snapshots: *snapshots_default
+  plus:
+    detect:
+      requested_models:
+        - face           # modelo facial
+        # - license_plate  # modelo de matrículas (activa se precisas)
+        # - truck          # modelo de camións
+# Tamén podes axustar o valor de fps, resolución ou zonas específicas.

@@ -1,0 +1,96 @@
+########################################
+# Ficheiro xeral de configuración de Frigate
+#
+# Este ficheiro contén a configuración global que se aplicará
+# a tódalas cámaras.  Logo combínase coas configuracións
+# individuais das cámaras (situadas na carpeta cameras/) para
+# xerar o ficheiro final config.yml.  Pode xerarse usando o
+# script generate_config.py incluído nas automatizacións.
+
+mqtt:
+  host: mosquitto               # Nome do servizo MQTT no docker-compose
+  port: 1883                    # Porto no que escoita Mosquitto
+  user: ${MQTT_USERNAME}        # Usuario de acceso (definido en .env)
+  password: ${MQTT_PASSWORD}    # Contrasinal (definido en .env)
+  topic_prefix: frigate         # Prefixo para os temas MQTT
+  client_id: frigate            # ID do cliente MQTT
+
+detectors:
+  coral:
+    type: edgetpu
+    device: pci                # Emprega a aceleradora Coral PCIe
+
+# Configuración global de snapshots.  As snapshots son imaxes
+# estáticas capturadas durante un evento e utilízanse para
+# notificacións.
+snapshots:
+  enabled: true
+  timestamp: true
+  bounding_box: true
+  retain:
+    default: 2                 # Días que se conservan por defecto
+  # location: /media/frigate/snapshots # Ruta alternativa para snapshots (opcional)
+
+# Configuración global de grabación (recordings).  Cada cámara
+# pode sobrescribir estes valores.
+record:
+  enabled: true
+  retain:
+    days: 3
+    mode: motion              # motion: garda segmentos con movemento
+  events:
+    retain:
+      days: 10
+      mode: motion
+
+# Configuración de Frigate+.  Debe ter unha subscrición a
+# Frigate+ para activar o recoñecemento de caras e matrículas.
+plus:
+  enabled: true
+  # api_key: ""            # Engade a túa chave de Frigate+ se se precisa
+
+# URL da interface web de Frigate.  Non modificar salvo que
+# cambies o porto no docker-compose.
+ui_url: http://localhost:${FRIGATE_UI_PORT}
+live:
+  stream:
+    enabled: true
+
+# Nota: Non inclúas definicións de cámaras neste ficheiro.  Crea
+# un ficheiro por cámara en cameras/ e logo xéralos co script
+# generate_config.py.
+
+# ---------------------------------------------------------------------------
+# Ancoras reutilizables
+#
+# A continuación definimos varias ancoras que permiten reutilizar
+# configuracións comúns en todos os ficheiros de cámara.  Usando a
+# sintaxe ``record: *record_motion`` ou ``snapshots: *snapshots_default``
+# nas cámaras, evitamos duplicar a mesma configuración.  Estas ancoras
+# defínense aquí para que poidan ser referenciadas polos ficheiros de
+# cámara.  Se non necesitas as ancoras, podes ignoralas.
+
+record_continuous: &record_continuous
+  enabled: true
+  retain:
+    days: 7          # días de retención para gravación continua
+    mode: all        # 'all' grava 24 horas ao día
+  events:
+    retain:
+      days: 10       # días que se conservan eventos individuais
+      mode: motion   # modo para eventos
+
+record_motion: &record_motion
+  enabled: true
+  retain:
+    days: 3          # días de retención cando só hai movemento
+    mode: motion     # grava só movemento
+  events:
+    retain:
+      days: 10
+      mode: motion
+
+snapshots_default: &snapshots_default
+  enabled: true
+  retain:
+    default: 2       # conserva snapshots durante 2 días por defecto
